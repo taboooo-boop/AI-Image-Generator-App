@@ -110,21 +110,8 @@ CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
         const imagesGrid = document.getElementById('images-grid');
         const messageBox = document.getElementById('message-box');
 
-        const apiKey = "curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" \
-  -H 'Content-Type: application/json' \
-  -H 'X-goog-api-key: GEMINI_API_KEY' \
-  -X POST \
-  -d '{
-    "contents": [
-      {
-        "parts": [
-          {
-            "text": "Explain how AI works in a few words"
-          }
-        ]
-      }
-    ]
-  }'";
+        // สำคัญ: กรุณาใส่ API Key ของคุณที่นี่
+        const apiKey = "AIzaSyBR--TBxELxzw_Z-Bb2wgrjIFTCdgwapmI"; 
         const imagenApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
         const flashApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`;
         const translationApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
