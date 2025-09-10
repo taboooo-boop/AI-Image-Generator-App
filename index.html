@@ -1,0 +1,392 @@
+<!-- Chosen Palette: Harmonious Serenity -->
+<!-- Application Structure Plan: The SPA is redesigned as a single-column responsive dashboard. The control panel and the display area are stacked vertically to provide a linear, top-to-bottom user flow. This structure was chosen to provide an intuitive experience, especially for mobile users, where vertical scrolling is natural. On desktop, this layout focuses the user's attention on one section at a time. The 'action' (inputting prompts) is at the top, and the 'result' (AI-generated images) is at the bottom. This design simplifies the interface, making it easier to navigate and understand the application's purpose. -->
+<!-- Visualization & Content Choices: Summary: Report Info -> Goal -> Viz/Presentation Method -> Interaction -> Justification -> Library/Method.
+1.  **Prompt Input:** Goal is to collect user's creative text. Method is a text area. Interaction is typing and a button click. Justification: Standard, efficient input method.
+2.  **Image Input:** Goal is to allow image-to-image generation. Method is a file input with a preview. Interaction is file selection. Justification: Provides a clear visual cue for the chosen image.
+3.  **Enhanced Prompt:** Goal is to assist the user in writing better prompts. Method is a button connected to an LLM API. Interaction is a single click that auto-fills the text area. Justification: Adds value and improves the quality of generated images.
+4.  **Image Generation:** Goal is to display the final visual output. Method is a responsive image grid populated by JavaScript. Interaction includes a loading state and a download link for each image. Justification: Visually appealing and makes images immediately actionable.
+5.  **Status/Feedback:** Goal is to provide real-time user feedback. Method is a dynamic message box and loading spinner. Interaction is automatic based on user actions. Justification: Essential for guiding the user through the process and handling errors gracefully.
+6.  **Overall Layout:** Goal is to present all information clearly on one page. Method is a responsive Tailwind flexbox layout. Justification: Ensures the application is usable on all devices and maintains visual hierarchy.
+CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>โปรแกรมสร้างภาพ AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F7F5F2;
+            color: #4a5568;
+        }
+        .loading-spinner {
+            border: 4px solid #F0F4F8;
+            border-top: 4px solid #6C7A89;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center p-4 bg-[#F7F5F2]">
+    <div class="w-full max-w-2xl p-6 bg-[#F0F4F8] rounded-2xl shadow-xl border border-[#D1D9E6] flex flex-col gap-8 items-center">
+        <!-- Control Panel (Top Section) -->
+        <div class="flex flex-col items-center w-full">
+            <h1 class="text-3xl font-bold mb-2 text-center text-[#2C3E50]">สร้างภาพด้วย AI (JohnView.ai)</h1>
+            <p class="text-md text-red-600 mb-6 text-center">พิมพ์ข้อความและอัปโหลดรูปภาพที่ต้องการแล้ว JohnView.ai จะสร้างภาพให้โดยอัตโนมัติ</p>
+            
+            <input type="file" id="image-input" accept="image/*" class="w-full mb-4 text-[#2C3E50] border border-[#D1D9E6] rounded-lg p-2 bg-white cursor-pointer">
+            
+            <div id="image-preview-container" class="mb-4 hidden w-full">
+                <img id="image-preview" class="rounded-lg max-w-full h-auto border border-[#D1D9E6] shadow-md">
+            </div>
+
+            <textarea id="prompt-input" rows="4" class="w-full p-3 mb-4 bg-white text-[#2C3E50] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9B59B6] transition-all duration-300 placeholder-gray-400 border border-[#D1D9E6]" placeholder="ตัวอย่าง: แมวตัวหนึ่งกำลังเล่นสเก็ตบอร์ดบนถนนในเมืองที่มีแสงสีสดใส..."></textarea>
+            
+            <button id="enhance-btn" class="w-full py-3 px-6 mb-2 bg-[#E91E63] hover:bg-[#C2185B] text-white font-bold rounded-lg shadow-md transition-transform duration-200 transform hover:scale-105">
+                ✨ สร้างสรรค์ข้อความ ✨
+            </button>
+
+            <button id="generate-btn" class="w-full py-3 px-6 mb-2 bg-[#9B59B6] hover:bg-[#8E44AD] text-white font-bold rounded-lg shadow-md transition-transform duration-200 transform hover:scale-105">
+                สร้างภาพ
+            </button>
+
+            <button id="clear-btn" class="w-full py-3 px-6 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg shadow-md transition-transform duration-200 transform hover:scale-105">
+                ล้างข้อมูล
+            </button>
+            
+            <p class="text-center text-[#3498DB] mt-4 text-sm">พัฒนา AI โดย นายบุญสืบ ลอดแปง @ 2025</p>
+        </div>
+
+        <!-- Display Area (Bottom Section) -->
+        <div class="flex flex-col items-center w-full mt-8 md:mt-0">
+            <div id="loading-area" class="flex-grow flex flex-col justify-center items-center w-full h-full hidden">
+                <div class="loading-spinner mb-4"></div>
+                <p id="loading-message" class="text-[#2C3E50] text-center">กำลังประมวลผล... โปรดรอสักครู่</p>
+            </div>
+
+            <div id="images-grid" class="grid grid-cols-1 gap-4 w-full md:grid-cols-2 lg:grid-cols-2 hidden">
+                <!-- Images will be dynamically inserted here -->
+            </div>
+
+            <div id="message-box" class="w-full mt-4 p-4 bg-[#F2DEDE] text-[#D9534F] rounded-lg border border-[#EBCCCC] hidden">
+                เกิดข้อผิดพลาดในการสร้าง.
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const promptInput = document.getElementById('prompt-input');
+        const imageInput = document.getElementById('image-input');
+        const imagePreview = document.getElementById('image-preview');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const generateBtn = document.getElementById('generate-btn');
+        const enhanceBtn = document.getElementById('enhance-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const loadingArea = document.getElementById('loading-area');
+        const loadingMessage = document.getElementById('loading-message');
+        const imagesGrid = document.getElementById('images-grid');
+        const messageBox = document.getElementById('message-box');
+
+        const apiKey = "";
+        const imagenApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+        const flashApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`;
+        const translationApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+        const llmApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+        const maxRetries = 3;
+        const baseRetryDelay = 1000;
+
+        // Function to auto-resize the textarea based on content
+        function autoResizeTextarea() {
+            promptInput.style.height = 'auto';
+            promptInput.style.height = promptInput.scrollHeight + 'px';
+        }
+
+        // Add an event listener to the textarea for dynamic resizing as the user types
+        promptInput.addEventListener('input', autoResizeTextarea);
+
+        function showLoading(message) {
+            generateBtn.disabled = true;
+            enhanceBtn.disabled = true;
+            loadingMessage.textContent = message;
+            loadingArea.classList.remove('hidden');
+            imagesGrid.classList.add('hidden');
+            messageBox.classList.add('hidden');
+            imagesGrid.innerHTML = '';
+        }
+
+        function hideLoading() {
+            generateBtn.disabled = false;
+            enhanceBtn.disabled = false;
+            loadingArea.classList.add('hidden');
+        }
+
+        function showImages(predictions) {
+            imagesGrid.classList.remove('hidden');
+            predictions.forEach((prediction, index) => {
+                if (prediction.bytesBase64Encoded) {
+                    const base64Data = prediction.bytesBase64Encoded;
+                    const imageUrl = `data:image/png;base64,${base64Data}`;
+
+                    const imageCard = document.createElement('div');
+                    imageCard.className = 'flex flex-col items-center p-2 bg-white rounded-lg shadow-md border border-[#D1D9E6] transition-transform duration-200 hover:scale-105';
+                    
+                    const image = document.createElement('img');
+                    image.src = imageUrl;
+                    image.alt = `ภาพที่สร้างโดย AI #${index + 1}`;
+                    image.className = 'w-full h-auto rounded-lg mb-2';
+
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = imageUrl;
+                    downloadLink.download = `ai-image-${Date.now()}-${index + 1}.png`;
+                    downloadLink.textContent = `ดาวน์โหลดภาพ #${index + 1}`;
+                    downloadLink.className = 'w-full py-2 px-4 text-center bg-[#9B59B6] hover:bg-[#8E44AD] text-white font-bold rounded-lg transition-colors duration-200';
+
+                    imageCard.appendChild(image);
+                    imageCard.appendChild(downloadLink);
+                    imagesGrid.appendChild(imageCard);
+                }
+            });
+        }
+
+        function showMessage(message, isError = false) {
+            messageBox.textContent = message;
+            if (isError) {
+                messageBox.classList.remove('bg-[#D4EDDA]', 'text-[#155724]');
+                messageBox.classList.add('bg-[#F2DEDE]', 'text-[#D9534F]');
+            } else {
+                messageBox.classList.remove('bg-[#F2DEDE]', 'text-[#D9534F]');
+                messageBox.classList.add('bg-[#D4EDDA]', 'text-[#155724]');
+            }
+            messageBox.classList.remove('hidden');
+        }
+
+        async function fetchWithRetry(url, options, retries = 0) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    if (response.status === 429 && retries < maxRetries) {
+                        const delay = baseRetryDelay * Math.pow(2, retries);
+                        console.warn(`การเรียก API ล้มเหลว (Status: ${response.status}). กำลังลองใหม่ใน ${delay / 1000} วินาที...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        return fetchWithRetry(url, options, retries + 1);
+                    }
+                    throw new Error(`HTTP error! status: ${response.status}`, { cause: response.status });
+                }
+                return await response.json();
+            } catch (error) {
+                console.error("การเรียก API ล้มเหลว:", error);
+                throw error;
+            }
+        }
+
+        async function translatePrompt(thaiPrompt) {
+            const systemPrompt = "Translate the following Thai text to English. Respond with only the English translation.";
+            const userQuery = thaiPrompt;
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            try {
+                const response = await fetchWithRetry(translationApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const candidate = response?.candidates?.[0];
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    return candidate.content.parts[0].text;
+                }
+                throw new Error("Translation failed.");
+            } catch (error) {
+                console.error("Translation API error:", error);
+                return thaiPrompt;
+            }
+        }
+
+        imageInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    imagePreviewContainer.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            } else {
+                imagePreviewContainer.classList.add('hidden');
+            }
+        });
+
+        enhanceBtn.addEventListener('click', async () => {
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                showMessage("กรุณาพิมพ์ข้อความเพื่อสร้างสรรค์", true);
+                return;
+            }
+            
+            showLoading("กำลังสร้างสรรค์ข้อความ... โปรดรอสักครู่");
+
+            const systemPrompt = "Given the user's Thai input, provide a more detailed and creative text prompt in Thai for an image generation AI. For example, if the input is 'แมวน่ารัก', a good output would be 'แมวเปอร์เซียขนฟูสีส้มกำลังนั่งอยู่ริมหน้าต่างในยามบ่ายที่มีแสงแดดส่องกระทบ'. Please provide only the new prompt, with no extra text.";
+            const userQuery = prompt;
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            try {
+                const response = await fetchWithRetry(llmApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const candidate = response?.candidates?.[0];
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    promptInput.value = candidate.content.parts[0].text;
+                    autoResizeTextarea(); // Call the resize function after updating the content
+                    showMessage("สร้างสรรค์ข้อความเรียบร้อยแล้ว!", false);
+                } else {
+                    showMessage("ไม่สามารถสร้างสรรค์ข้อความได้. โปรดลองใหม่อีกครั้ง", true);
+                }
+            } catch (error) {
+                console.error("LLM API error:", error);
+                if (error.cause === 401) {
+                    showMessage("ข้อผิดพลาดในการเชื่อมต่อ: ไม่สามารถยืนยันสิทธิ์ API Key ได้ กรุณาลองใหม่อีกครั้ง", true);
+                } else {
+                    showMessage("เกิดข้อผิดพลาด: ไม่สามารถเชื่อมต่อกับบริการสร้างสรรค์ข้อความได้", true);
+                }
+            } finally {
+                hideLoading();
+            }
+        });
+
+        generateBtn.addEventListener('click', async () => {
+            const prompt = promptInput.value.trim();
+            const file = imageInput.files[0];
+
+            if (!prompt && !file) {
+                showMessage("กรุณาพิมพ์ข้อความหรือเลือกรูปภาพ", true);
+                return;
+            }
+
+            if (file) {
+                showLoading("กำลังแปลงรูปภาพ... โปรดรอสักครู่");
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const base64Data = e.target.result.split(',')[1];
+                    try {
+                        const payload = {
+                            contents: [{
+                                parts: [
+                                    { text: prompt },
+                                    { inlineData: { mimeType: file.type, data: base64Data } }
+                                ]
+                            }]
+                        };
+
+                        const response = await fetchWithRetry(flashApiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const imagePart = response?.candidates?.[0]?.content?.parts?.find(p => p.inlineData && p.inlineData.mimeType.startsWith('image/'));
+                        if (imagePart && imagePart.inlineData && imagePart.inlineData.data) {
+                            showImages([{ bytesBase64Encoded: imagePart.inlineData.data }]);
+                            showMessage("แปลงรูปภาพเรียบร้อยแล้ว!", false);
+                        } else {
+                            showMessage("ไม่สามารถแปลงรูปภาพได้. โปรดลองใหม่อีกครั้ง", true);
+                        }
+                    } catch (error) {
+                        console.error("เกิดข้อผิดพลาด:", error);
+                        if (error.cause === 401) {
+                            showMessage("ข้อผิดพลาดในการเชื่อมต่อ: ไม่สามารถยืนยันสิทธิ์ API Key ได้ กรุณาลองใหม่อีกครั้ง", true);
+                        } else {
+                            showMessage("เกิดข้อผิดพลาด: ไม่สามารถเชื่อมต่อกับบริการสร้างภาพได้", true);
+                        }
+                    } finally {
+                        hideLoading();
+                    }
+                };
+                reader.readAsDataURL(file);
+
+            } else {
+                showLoading("กำลังสร้างภาพ 4 ภาพ... โปรดรอสักครู่");
+
+                try {
+                    const translatedPrompt = await translatePrompt(prompt);
+                    
+                    const payload = {
+                        instances: [{ prompt: translatedPrompt }],
+                        parameters: { "sampleCount": 4 }
+                    };
+
+                    const response = await fetchWithRetry(imagenApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response?.predictions?.length > 0) {
+                        showImages(response.predictions);
+                        showMessage("สร้างภาพเรียบร้อยแล้ว!", false);
+                    } else {
+                        showMessage("ไม่สามารถสร้างภาพได้. โปรดลองใหม่อีกครั้ง", true);
+                    }
+
+                } catch (error) {
+                    console.error("เกิดข้อผิดพลาด:", error);
+                    if (error.cause === 401) {
+                        showMessage("ข้อผิดพลาดในการเชื่อมต่อ: ไม่สามารถยืนยันสิทธิ์ API Key ได้ กรุณาลองใหม่อีกครั้ง", true);
+                    } else {
+                        showMessage("เกิดข้อผิดพลาด: ไม่สามารถเชื่อมต่อกับบริการสร้างภาพได้", true);
+                    }
+                } finally {
+                    hideLoading();
+                }
+            }
+        });
+
+        clearBtn.addEventListener('click', () => {
+            promptInput.value = '';
+            imageInput.value = '';
+            imagePreviewContainer.classList.add('hidden');
+            imagesGrid.classList.add('hidden');
+            imagesGrid.innerHTML = '';
+            messageBox.classList.add('hidden');
+            promptInput.style.height = 'auto'; // Reset the height to default
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('Unhandled promise rejection:', event.reason);
+            showMessage("เกิดข้อผิดพลาดที่ไม่คาดคิด โปรดลองใหม่อีกครั้ง", true);
+            hideLoading();
+        });
+    </script>
+</body>
+</html>
